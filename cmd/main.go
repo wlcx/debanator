@@ -31,21 +31,10 @@ func logMiddleware(h http.HandlerFunc) http.HandlerFunc {
 		log.WithFields(log.Fields{
 			"remote": r.RemoteAddr,
 			"method": r.Method,
-			"url": r.URL,
+			"url":    r.URL,
 			"status": rec.status,
 		}).Info("Got request")
 	}
-}
-
-func md(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func unwrap[T any](val T, err error) T {
-	md(err)
-	return val
 }
 
 func main() {
@@ -57,22 +46,23 @@ func main() {
 	kb, err := os.ReadFile("privkey.gpg")
 	if err != nil {
 		log.Infof("Generating new key...")
-		ecKey = unwrap(crypto.GenerateKey("Debanator", "packager@example.com", "x25519", 0))
-		f := unwrap(os.Create("privkey.gpg"))
+		ecKey = debanator.Unwrap(crypto.GenerateKey("Debanator", "packager@example.com", "x25519", 0))
+		f := debanator.Unwrap(os.Create("privkey.gpg"))
 		defer f.Close()
-		armored := unwrap(ecKey.Armor())
+		armored := debanator.Unwrap(ecKey.Armor())
 		f.WriteString(armored)
 	} else {
 		log.Infof("Using existing key...")
-		ecKey = unwrap(crypto.NewKeyFromArmored(string(kb)))
+		ecKey = debanator.Unwrap(crypto.NewKeyFromArmored(string(kb)))
 	}
 
 	signingKeyRing, err := crypto.NewKeyRing(ecKey)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	repo := debanator.ScanDebs(debPath)
+	be := debanator.NewFileBackend(debPath)
+	repo := debanator.NewRepoFromBackend(be, "/dists/stable")
+	debanator.Md(repo.Populate())
 	if err := repo.GenerateFiles(); err != nil {
 		log.Fatal(err)
 	}
@@ -94,6 +84,5 @@ func main() {
 		io.WriteString(w, pub)
 	})
 	r.Mount("/dists/stable", repo.GetHandler(signingKeyRing))
-	r.Get("/pool/main/*", http.StripPrefix("/pool/main/", http.FileServer(http.Dir(debPath))).ServeHTTP)
 	http.ListenAndServe(listenAddr, r)
 }

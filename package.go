@@ -1,19 +1,17 @@
 package debanator
 
 import (
-	"bytes"
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 	"io"
-	"net/http"
-	"time"
+	"strconv"
+	"strings"
 
-	"github.com/ProtonMail/gopenpgp/v2/crypto"
-	"github.com/go-chi/chi/v5"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"pault.ag/go/debian/control"
+	"pault.ag/go/debian/deb"
 	"pault.ag/go/debian/dependency"
-	"pault.ag/go/debian/hashio"
 	"pault.ag/go/debian/version"
 )
 
@@ -24,137 +22,58 @@ type LogicalPackage struct {
 	Arches map[dependency.Arch]map[version.Version]control.BinaryIndex
 }
 
-type hashedFile struct {
-	buf []byte
-	md5Hash control.MD5FileHash
-	sha1Hash control.SHA1FileHash
-	sha256Hash control.SHA256FileHash
-}
-
-type Repo struct {
-	packages []LogicalPackage
-	cache map[string]hashedFile
-	release []byte
-}
-
-func (r *Repo) GetArches() []dependency.Arch {
-	arches := make(map[dependency.Arch]struct{})
-	for _, lp := range r.packages {
-		for arch := range lp.Arches {
-			arches[arch] = struct{}{}
-		}
+func BinaryIndexFromDeb(r ReaderAtCloser, filePath string) (*control.BinaryIndex, error) {
+	debFile, err := deb.Load(r, "fakepath")
+	if err != nil {
+		return nil, fmt.Errorf("read deb: %w", err)
 	}
-	return maps.Keys(arches)
-}
-
-// Find the latest versions of all packages for the given arch
-func (r *Repo) GetPackagesForArch(a dependency.Arch) []control.BinaryIndex {
-	out := []control.BinaryIndex{}
-	for _, p := range r.packages {
-		if versions, ok := p.Arches[a]; ok {
-			var latest version.Version
-			for v := range versions {
-				if version.Compare(v, latest) > 0 {
-					latest = v 
-				}
-			}
-			out = append(out, p.Arches[a][latest])
-		}
+	md5sum := md5.New()
+	sha1sum := sha1.New()
+	sha256sum := sha256.New()
+	hashWriter := io.MultiWriter(md5sum, sha1sum, sha256sum)
+	size, err := io.Copy(hashWriter, r)
+	if err != nil {
+		return nil, fmt.Errorf("hash file: %w", err)
 	}
-	return out
-}
-
-func (r *Repo) makePackagesFileForArch(arch dependency.Arch) error {
-	var b bytes.Buffer
-	w, hashers, err := hashio.NewHasherWriters([]string{"md5", "sha256", "sha1"}, &b)
-	enc, _ := control.NewEncoder(w)
-	for _, d := range r.GetPackagesForArch(arch) {
-		if err = enc.Encode(d); err != nil {
-			return fmt.Errorf("encoding package %s: %w", d.Package, err)
-		}
+	bi := control.BinaryIndex{
+		Paragraph: control.Paragraph{
+			Values: make(map[string]string),
+		},
+		Package:       debFile.Control.Package,
+		Source:        debFile.Control.Source,
+		Version:       debFile.Control.Version,
+		InstalledSize: fmt.Sprintf("%d", debFile.Control.InstalledSize),
+		Size:          strconv.Itoa(int(size)),
+		Maintainer:    debFile.Control.Maintainer,
+		Architecture:  debFile.Control.Architecture,
+		MultiArch:     debFile.Control.MultiArch,
+		Description:   debFile.Control.Description,
+		Homepage:      debFile.Control.Homepage,
+		Section:       debFile.Control.Section,
+		// FIXME: gross, make this more centrally managed somehow
+		Filename: strings.TrimPrefix(filePath, "/"),
+		Priority: debFile.Control.Priority,
+		MD5sum:   fmt.Sprintf("%x", md5sum.Sum(nil)),
+		SHA1:     fmt.Sprintf("%x", sha1sum.Sum(nil)),
+		SHA256:   fmt.Sprintf("%x", sha256sum.Sum(nil)),
 	}
-	fname := fmt.Sprintf("main/binary-%s/Packages", arch)
-	hashes := make(map[string]control.FileHash)
-	for _, h := range hashers {
-		hashes[h.Name()] = control.FileHashFromHasher(fname, *h)
+	if debFile.Control.Depends.String() != "" {
+		bi.Paragraph.Set("Depends", debFile.Control.Depends.String())
 	}
-	r.cache[fname] = hashedFile{
-		buf: b.Bytes(),
-		sha256Hash: control.SHA256FileHash{hashes["sha256"]},
-		sha1Hash: control.SHA1FileHash{hashes["sha1"]},
-		md5Hash: control.MD5FileHash{hashes["md5"]},
+	if debFile.Control.Recommends.String() != "" {
+		bi.Paragraph.Set("Recommends", debFile.Control.Recommends.String())
 	}
-	return nil
-}
-
-// Generate and cache all the Package/Repo files
-func (r *Repo) GenerateFiles() error {
-	for _, arch := range r.GetArches() {
-		if err := r.makePackagesFileForArch(arch); err != nil {
-			return fmt.Errorf("generating files for arch %s: %w", arch, err)
-		}
+	if debFile.Control.Suggests.String() != "" {
+		bi.Paragraph.Set("Suggests", debFile.Control.Suggests.String())
 	}
-	r.makeRelease()
-	return nil
-}
-
-func (r *Repo) makeRelease() {
-	var rel bytes.Buffer
-		enc, _ := control.NewEncoder(&rel)
-		const dateFmt = "Mon, 02 Jan 2006 15:04:05 MST"
-		var md5s []control.MD5FileHash
-		var sha1s []control.SHA1FileHash
-		var sha256s []control.SHA256FileHash
-		for _, f := range r.cache {
-			md5s = append(md5s, f.md5Hash)
-			sha1s = append(sha1s, f.sha1Hash)
-			sha256s = append(sha256s, f.sha256Hash)
-		}
-		if err := enc.Encode(Release{
-			Suite: "stable",
-			Architectures: r.GetArches(),
-			Components: "main",
-			Date: time.Now().UTC().Format(dateFmt),
-			MD5Sum: md5s,
-			SHA1: sha1s,
-			SHA256: sha256s,
-		}); err != nil {
-			log.Fatal(err)
-		}
-		r.release = rel.Bytes()
-		return
+	if debFile.Control.Breaks.String() != "" {
+		bi.Paragraph.Set("Breaks", debFile.Control.Breaks.String())
 	}
-
-
-// Handle a deb/apt repository http request
-func (r *Repo) GetHandler(keyring *crypto.KeyRing) http.Handler {
-	router := chi.NewRouter()
-	router.Get("/Release", func(w http.ResponseWriter, req *http.Request) {
-		if _, err := w.Write(r.release); err != nil {
-			log.Fatal(err)
-		}
-	})
-	router.Get("/Release.gpg", func(w http.ResponseWriter, req *http.Request) {
-		msg := crypto.NewPlainMessage(r.release)
-		sig, err := keyring.SignDetached(msg)
-		if err != nil {
-			log.Fatal(err)
-		}
-		sigStr, err := sig.GetArmored()
-		if err != nil {
-			log.Fatal(err)
-		}
-		io.WriteString(w, sigStr)
-	})
-	router.Get("/main/{arch}/Packages", func(w http.ResponseWriter, req *http.Request) {
-		h, ok := r.cache[fmt.Sprintf("main/%s/Packages", chi.URLParam(req, "arch"))]
-		if !ok {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		_, err := w.Write(h.buf); if err != nil {
-			log.Error(err)
-		}
-	})
-	return router
+	if debFile.Control.Replaces.String() != "" {
+		bi.Paragraph.Set("Replaces", debFile.Control.Replaces.String())
+	}
+	if debFile.Control.BuiltUsing.String() != "" {
+		bi.Paragraph.Set("BuiltUsing", debFile.Control.BuiltUsing.String())
+	}
+	return &bi, nil
 }

@@ -10,7 +10,7 @@ type Release struct {
 	Architectures []dependency.Arch
 	Components    string
 	Date          string
-	SHA1           []control.SHA1FileHash `delim:"\n" strip:"\n\r\t "`
-	SHA256        []control.SHA256FileHash`delim:"\n" strip:"\n\r\t "`
-	MD5Sum        []control.MD5FileHash`delim:"\n" strip:"\n\r\t "`
+	SHA1          []control.SHA1FileHash   `delim:"\n" strip:"\n\r\t "`
+	SHA256        []control.SHA256FileHash `delim:"\n" strip:"\n\r\t "`
+	MD5Sum        []control.MD5FileHash    `delim:"\n" strip:"\n\r\t "`
 }
