@@ -1,0 +1,28 @@
+builds:
+  - id: debanator
+    main: ./cmd/main.go
+    ldflags:
+      - -s -w
+      - -X github.com/wlcx/debanator.Version={{.Version}}
+      - -X github.com/wlcx/debanator.Commit={{.ShortCommit}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - arm
+      - arm64
+      - amd64
+    goarm:
+      - 7
+
+nfpms:
+  - id: debanator
+    package_name: debanator
+    vendor: wlcx industries
+    builds:
+      - debanator
+    maintainer: Sam W <sam@wlcx.cc>
+    formats:
+      - deb

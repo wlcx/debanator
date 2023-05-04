@@ -30,7 +30,7 @@
       apps.default = utils.lib.mkApp {drv = packages.default;};
 
       devShells.default =
-        pkgs.devshell.mkShell {packages = with pkgs; [go gopls];};
+        pkgs.devshell.mkShell {packages = with pkgs; [go gopls goreleaser];};
       formatter = pkgs.alejandra;
     });
 }

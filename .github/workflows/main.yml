@@ -1,0 +1,29 @@
+name: main
+
+on: push
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v19
+    - run: nix develop -c go generate
+    - run: nix develop -c go test
+
+  release:
+    name: Build Release
+    if: startsWith(github.event.ref, 'refs/tags/v')
+    needs: 
+    - test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v19
+    - run: nix develop -c goreleaser release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: softprops/action-gh-release@v1
+      with:
+        files: "*.deb"
