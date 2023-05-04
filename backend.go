@@ -22,4 +22,3 @@ type DebFile interface {
 	GetReader() (ReaderAtCloser, error)
 	GetName() string
 }
-

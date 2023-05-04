@@ -55,7 +55,7 @@ func main() {
 
 	log.WithFields(log.Fields{
 		"version": debanator.Version,
-		"commit": debanator.Commit,
+		"commit":  debanator.Commit,
 	}).Info("Starting debanator...")
 	var ecKey *crypto.Key
 	kb, err := os.ReadFile("privkey.gpg")
