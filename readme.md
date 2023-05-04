@@ -27,8 +27,21 @@ Then, on the system you want packages on:
 - `apt update`
 - `apt install your-package`
 
+
+## Tailscale
+
+Debanator supports listening inside a [Tailscale] tailnet as a ["Virtual Private
+Service"][vps]. To enable this mode, generate an auth key in the Tailscale admin panel
+and pass it as the `TS_AUTHKEY` env var. You can change the hostname debanator uses with
+`-tailscalehostname`.
+
+Note that debanator still respects `-listenaddr`, which given you're inside a tailnet
+now you probably just want to set to `:80`.
+
 ## Discussion
 
 - Yes, you could just use dpkg-scanpackages, but you'd have to write some script which
 did that, plus gpg and also fetched your packages from wherever they are.
 
+[tailscale]: https://tailscale.com
+[vps]: https://tailscale.com/blog/tsnet-virtual-private-services/

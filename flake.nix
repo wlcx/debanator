@@ -1,8 +1,9 @@
 {
-  description = "Another cool golang abhorration from samw";
+  description = "Serve your deb files as an APT repo";
 
   inputs.utils.url = "github:numtide/flake-utils";
   inputs.devshell.url = "github:numtide/devshell";
+  inputs.nixpkgs.url = "github:nixos/nixpkgs";
 
   outputs = {
     self,
@@ -17,14 +18,13 @@
       };
     in rec {
       packages.default = pkgs.buildGoModule {
-        name = "my-project";
+        name = "debanator";
         src = self;
-        vendorSha256 = "";
+        vendorSha256 = "sha256-M8/8fi0JBkUDjhLpur54bv2HzaOEhAIuqZO+oSvkIBk=";
 
-        # Inject the git version if you want
-        #ldflags = ''
-        #  -X main.version=${if self ? rev then self.rev else "dirty"}
-        #'';
+        ldflags = ''
+          -X debanator.Commit=${if self ? rev then self.rev else "dirty"}
+        '';
       };
 
       apps.default = utils.lib.mkApp {drv = packages.default;};

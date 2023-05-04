@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	log "github.com/sirupsen/logrus"
 	"github.com/wlcx/debanator"
+	"tailscale.com/tsnet"
 )
 
 type responseRecorder struct {
@@ -44,6 +46,7 @@ func main() {
 	httpUser := flag.String("httpuser", "debanator", "Username for HTTP basic auth")
 	httpPass := flag.String("httppass", "", "Enable HTTP basic auth with this password")
 	showVersion := flag.Bool("version", false, "Show version")
+	tailscaleHostname := flag.String("tailscalehostname", "debanator", "Hostname for this instance on tailscale")
 	flag.Parse()
 	if *showVersion {
 		fmt.Printf("debanator %s, (git#%s)\n", debanator.Version, debanator.Commit)
@@ -78,7 +81,6 @@ func main() {
 	if err := repo.GenerateFiles(); err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("Listening on %s", *listenAddr)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	if *httpPass != "" {
@@ -104,5 +106,26 @@ func main() {
 		io.WriteString(w, pub)
 	})
 	r.Mount("/dists/stable", repo.GetHandler(signingKeyRing))
-	http.ListenAndServe(*listenAddr, r)
+
+	var listen func(string, string) (net.Listener, error)
+	if _, gotTsKey := os.LookupEnv("TS_AUTHKEY"); gotTsKey {
+		log.Infof("Tailscale mode enabled. Using hostname %s", *tailscaleHostname)
+		s := &tsnet.Server{
+			Hostname: *tailscaleHostname,
+			// tsnet is a bit logspammy so send it all to debug
+			Logf: func(fmt string, args ...any) {
+				log.Debugf("[tsnet] "+fmt, args...)
+			},
+		}
+		defer s.Close()
+		listen = s.Listen
+	} else {
+		listen = net.Listen
+	}
+
+	listener := debanator.Unwrap(listen("tcp", *listenAddr))
+	defer listener.Close()
+
+	log.Infof("Listening on %s", *listenAddr)
+	http.Serve(listener, r)
 }
