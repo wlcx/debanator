@@ -38,8 +38,10 @@ func logMiddleware(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
-	listenAddr := *flag.String("listen", ":1612", "HTTP listen address")
-	debPath := *flag.String("debpath", "debs", "Path to directory containing deb files.")
+	listenAddr := flag.String("listen", ":1612", "HTTP listen address")
+	debPath := flag.String("debpath", "debs", "Path to directory containing deb files.")
+	httpUser := flag.String("httpuser", "debanator", "Username for HTTP basic auth")
+	httpPass := flag.String("httppass", "", "Enable HTTP basic auth with this password")
 	flag.Parse()
 	log.Info("Starting...")
 	var ecKey *crypto.Key
@@ -60,15 +62,23 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	be := debanator.NewFileBackend(debPath)
+	be := debanator.NewFileBackend(*debPath)
 	repo := debanator.NewRepoFromBackend(be, "/dists/stable")
 	debanator.Md(repo.Populate())
 	if err := repo.GenerateFiles(); err != nil {
 		log.Fatal(err)
 	}
-	log.Infof("Listening on %s", listenAddr)
+	log.Infof("Listening on %s", *listenAddr)
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	if *httpPass != "" {
+		log.Infof("HTTP basic auth enabled")
+		// We're using auth
+		authMap := map[string]string{
+			*httpUser: *httpPass,
+		}
+		r.Use(middleware.BasicAuth("", authMap))
+	}
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
 		enc := json.NewEncoder(w)
@@ -84,5 +94,5 @@ func main() {
 		io.WriteString(w, pub)
 	})
 	r.Mount("/dists/stable", repo.GetHandler(signingKeyRing))
-	http.ListenAndServe(listenAddr, r)
+	http.ListenAndServe(*listenAddr, r)
 }
