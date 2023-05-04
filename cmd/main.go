@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -42,8 +43,17 @@ func main() {
 	debPath := flag.String("debpath", "debs", "Path to directory containing deb files.")
 	httpUser := flag.String("httpuser", "debanator", "Username for HTTP basic auth")
 	httpPass := flag.String("httppass", "", "Enable HTTP basic auth with this password")
+	showVersion := flag.Bool("version", false, "Show version")
 	flag.Parse()
-	log.Info("Starting...")
+	if *showVersion {
+		fmt.Printf("debanator %s, (git#%s)\n", debanator.Version, debanator.Commit)
+		os.Exit(0)
+	}
+
+	log.WithFields(log.Fields{
+		"version": debanator.Version,
+		"commit": debanator.Commit,
+	}).Info("Starting debanator...")
 	var ecKey *crypto.Key
 	kb, err := os.ReadFile("privkey.gpg")
 	if err != nil {
