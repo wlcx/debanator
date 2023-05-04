@@ -22,9 +22,10 @@
         src = self;
         vendorSha256 = "sha256-M8/8fi0JBkUDjhLpur54bv2HzaOEhAIuqZO+oSvkIBk=";
 
-        ldflags = ''
-          -X debanator.Commit=${if self ? rev then self.rev else "dirty"}
-        '';
+        # doesn't work
+        #ldflags = ''
+        #  -X github.com/wlcx/debanator.Commit=${if self ? rev then self.rev else "dirty"}
+        #'';
       };
 
       apps.default = utils.lib.mkApp {drv = packages.default;};
