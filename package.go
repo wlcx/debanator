@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"pault.ag/go/debian/control"
@@ -42,8 +41,8 @@ func BinaryIndexFromDeb(r ReaderAtCloser, filePath string) (*control.BinaryIndex
 		Package:       debFile.Control.Package,
 		Source:        debFile.Control.Source,
 		Version:       debFile.Control.Version,
-		InstalledSize: fmt.Sprintf("%d", debFile.Control.InstalledSize),
-		Size:          strconv.Itoa(int(size)),
+		InstalledSize: debFile.Control.InstalledSize,
+		Size:          int(size),
 		Maintainer:    debFile.Control.Maintainer,
 		Architecture:  debFile.Control.Architecture,
 		MultiArch:     debFile.Control.MultiArch,

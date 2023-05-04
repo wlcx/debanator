@@ -7,7 +7,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/sirupsen/logrus v1.9.0
 	golang.org/x/exp v0.0.0-20230420155640-133eef4313cb
-	pault.ag/go/debian v0.12.0
+	pault.ag/go/debian v0.12.1-0.20221005163303-f50faa5a0bdf
 	tailscale.com v1.40.0
 )
 
@@ -46,7 +46,7 @@ require (
 	github.com/josharian/native v1.1.1-0.20230202152459-5c7d0dd6ab86 // indirect
 	github.com/jsimonetti/rtnetlink v1.1.2-0.20220408201609-d380b505068b // indirect
 	github.com/kjk/lzma v0.0.0-20161016003348-3fd93898850d // indirect
-	github.com/klauspost/compress v1.15.4 // indirect
+	github.com/klauspost/compress v1.15.7 // indirect
 	github.com/kortschak/wol v0.0.0-20200729010619-da482cc4850a // indirect
 	github.com/mdlayher/genetlink v1.2.0 // indirect
 	github.com/mdlayher/netlink v1.7.1 // indirect
