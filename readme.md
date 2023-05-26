@@ -13,6 +13,9 @@ Proof of concept. Neither fast, efficient, secure, neat, or featureful. Don't us
 production unless you are really sure you know what you're doing and even then prepare
 to have your laundry eaten.
 
+## Contributing
+Contributions welcome! You may find the Github mirror at https://github.com/wlcx/debanator easier if you're not already there.
+
 
 ## Usage
 
