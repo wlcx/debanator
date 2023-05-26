@@ -43,6 +43,7 @@ func logMiddleware(h http.HandlerFunc) http.HandlerFunc {
 func main() {
 	listenAddr := flag.String("listen", ":1612", "HTTP listen address")
 	debPath := flag.String("debpath", "debs", "Path to directory containing deb files.")
+	privKey := flag.String("privkey", "privkey.gpg", "Path to private key file. Will be created if it doesn't exist")
 	httpUser := flag.String("httpuser", "debanator", "Username for HTTP basic auth")
 	httpPass := flag.String("httppass", "", "Enable HTTP basic auth with this password")
 	showVersion := flag.Bool("version", false, "Show version")
@@ -58,11 +59,11 @@ func main() {
 		"commit":  debanator.Commit,
 	}).Info("Starting debanator...")
 	var ecKey *crypto.Key
-	kb, err := os.ReadFile("privkey.gpg")
+	kb, err := os.ReadFile(*privKey)
 	if err != nil {
 		log.Infof("Generating new key...")
 		ecKey = debanator.Unwrap(crypto.GenerateKey("Debanator", "packager@example.com", "x25519", 0))
-		f := debanator.Unwrap(os.Create("privkey.gpg"))
+		f := debanator.Unwrap(os.Create(*privKey))
 		defer f.Close()
 		armored := debanator.Unwrap(ecKey.Armor())
 		f.WriteString(armored)
